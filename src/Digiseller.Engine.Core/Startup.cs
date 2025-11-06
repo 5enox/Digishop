@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using Digiseller.Client.Core;
 using Digiseller.Client.Core.Enums;
@@ -11,30 +11,25 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
 
 namespace Digiseller.Engine.Core
 {
     public class Startup
     {
-        public Startup(IHostingEnvironment env)
+        public Startup(IConfiguration configuration, IWebHostEnvironment env)
         {
-            var builder = new ConfigurationBuilder()
-                .SetBasePath(env.ContentRootPath)
-                .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-                .AddEnvironmentVariables();
-            Configuration = builder.Build();
+            Configuration = configuration;
+            Environment = env;
         }
 
-        public IConfigurationRoot Configuration { get; }
+        public IConfiguration Configuration { get; }
+        public IWebHostEnvironment Environment { get; }
 
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddOptions();
-            //services.Configure<DigisellerConnection>(Configuration.GetSection("DigisellerConnection"));
-            //services.Configure<AdminSettings>(Configuration.GetSection("AdminSettings"));
-            //services.Configure<ShopSettings>(Configuration.GetSection("ShopSettings"));
 
             services.AddSingleton(
                 new DigisellerClient(Configuration.GetValue<int>($"{nameof(DigisellerSettings)}:DigisellerId"),
@@ -50,15 +45,12 @@ namespace Digiseller.Engine.Core
             services.AddSession();
             services.AddCloudscribePagination();
             // Add framework services.
-            services.AddMvc();
+            services.AddControllersWithViews();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IHostingEnvironment env, ILoggerFactory loggerFactory, IConfProvider conf)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env, IConfProvider conf)
         {
-            loggerFactory.AddConsole(Configuration.GetSection("Logging"));
-            loggerFactory.AddDebug();
-
             app.UseStatusCodePagesWithReExecute("/error/{0}");
 
             app.Use((httpContext, next) =>
@@ -93,7 +85,6 @@ namespace Digiseller.Engine.Core
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
-                app.UseBrowserLink();
             }
             else
             {
@@ -101,62 +92,65 @@ namespace Digiseller.Engine.Core
             }
 
             app.UseStaticFiles();
-            app.UseMvc(routes =>
+            app.UseRouting();
+            app.UseAuthorization();
+
+            app.UseEndpoints(endpoints =>
             {
-                routes.MapRoute(
+                endpoints.MapControllerRoute(
                     name: "productListPager",
-                    template: "Products/Page-{page:int}",
+                    pattern: "Products/Page-{page:int}",
                     defaults: new { controller = "Product", action = "Index", category = 0 }
                 );
 
-                routes.MapRoute(
+                endpoints.MapControllerRoute(
                     name: "productListCategory",
-                    template: "Products/Category-{category:int}",
+                    pattern: "Products/Category-{category:int}",
                     defaults: new { controller = "Product", action = "Index", page = 1 }
                 );
 
-                routes.MapRoute(
+                endpoints.MapControllerRoute(
                     name: "productListCategoryPager",
-                    template: "Products/Category-{category:int}/Page-{page:int}",
+                    pattern: "Products/Category-{category:int}/Page-{page:int}",
                     defaults: new { controller = "Product", action = "Index" }
                 );
 
 
-                routes.MapRoute(
+                endpoints.MapControllerRoute(
                     name: "productListSearch",
-                    template: "Products/{search}",
+                    pattern: "Products/{search}",
                     defaults: new { controller = "Product", action = "Search", page = 1 }
                 );
 
-                routes.MapRoute(
+                endpoints.MapControllerRoute(
                     name: "productListSearchPager",
-                    template: "Products/{search}/Page-{page:int}",
+                    pattern: "Products/{search}/Page-{page:int}",
                     defaults: new { controller = "Product", action = "Search" }
                 );
 
-                routes.MapRoute(
+                endpoints.MapControllerRoute(
                     name: "productDetails",
-                    template: "Product/{id:int}",
+                    pattern: "Product/{id:int}",
                     defaults: new { controller = "Product", action = "Details" }
                 );
 
-                routes.MapRoute(
+                endpoints.MapControllerRoute(
                     name: "productList",
-                    template: "Products/",
+                    pattern: "Products/",
                     defaults: new { controller = "Product", action = "Index", category = 0 }
                 );
 
-                routes.MapRoute(
+                endpoints.MapControllerRoute(
                     name: "cartView",
-                    template: "Cart/",
+                    pattern: "Cart/",
                     defaults: new { controller = "Cart", action = "ViewCart" }
                 );
 
-                routes.MapRoute("areaRoute", "{area:exists}/{controller=Home}/{action=Index}/{id?}");
+                endpoints.MapControllerRoute("areaRoute", "{area:exists}/{controller=Home}/{action=Index}/{id?}");
 
-                routes.MapRoute(
+                endpoints.MapControllerRoute(
                     name: "default",
-                    template: "{controller=Product}/{action=Index}/{id?}");
+                    pattern: "{controller=Product}/{action=Index}/{id?}");
             });
         }
     }
